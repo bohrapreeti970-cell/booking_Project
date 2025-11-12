@@ -1,106 +1,66 @@
 import streamlit as st
-import uuid
-from datetime import datetime
+place_price = st.number_input("Price (INR)", min_value=0.0, format="%.2f")
+submit_place = st.form_submit_button("Add place")
+if submit_place:
+ok, msg = create_place(db, place_name.strip(), place_price)
+if ok:
+st.success(msg)
+else:
+st.error(msg)
 
-# Assume MongoDB collection is already connected:
-# from pymongo import MongoClient
-# client = MongoClient(st.secrets["mongo"]["url"])
-# db = client["travel_app"]
-# bookings_col = db["bookings"]
 
-# Dummy session user (for testing)
-if "user" not in st.session_state:
-    st.session_state.user = {"user_id": "u123", "name": "Preeti"}
+with tab[2]:
+st.subheader("Users")
+users = list(db.users.find({}, {"password":0}).sort("created_at", -1))
+if users:
+for u in users:
+st.write(u)
+else:
+st.info("No users yet.")
 
-st.title("✈️ Wanderly Travel Booking")
 
-# Fetch bookings (if user is logged in)
-bookings = list(bookings_col.find()) if "bookings_col" in locals() else []
+with tab[3]:
+st.subheader("Places")
+places = list_places(db)
+if places:
+for p in places:
+st.write(p)
+else:
+st.info("No places yet.")
 
+
+with tab[4]:
+st.subheader("All Bookings")
+bookings = get_all_bookings(db)
 if bookings:
-    for b in bookings:
-        with st.expander(f"Booking {b.get('booking_id')} — {b.get('destination')} for {b.get('name')}"):
-            st.write(b)
+for b in bookings:
+st.write(b)
 else:
-    st.write("No bookings yet.")
+st.info("No bookings yet.")
 
-# Booking form
+
+else:
 st.header("Book your trip")
-st.markdown(
-    "<div class='card' style='padding:10px;background-color:#f0f2f6;border-radius:10px;'>"
-    "Plan a trip in seconds — enter details and get an instant booking ID."
-    "</div>",
-    unsafe_allow_html=True,
-)
+st.markdown("Plan a trip in seconds — select a place and confirm booking.")
 
-with st.form("booking_form"):
-    name = st.text_input("Full name", value=st.session_state.user.get("name"))
-    email = st.text_input("Email")
-    destination = st.selectbox(
-        "Destination",
-        ["Paris, France", "New York, USA", "Tokyo, Japan", "Bali, Indonesia", "Goa, India"]
-    )
-    depart = st.date_input("Depart date")
-    ret = st.date_input("Return date")
-    travelers = st.number_input("Number of travelers", min_value=1, max_value=10, value=1)
-    travel_class = st.selectbox("Class", ["Economy", "Premium Economy", "Business", "First"])
-    extras = st.multiselect("Extras", ["Hotel", "Airport Pickup", "Sightseeing", "Travel Insurance"])
-    submit_book = st.form_submit_button("Book now")
 
-if submit_book:
-    # Basic validation
-    if not email or depart > ret:
-        st.error("Please provide a valid email and ensure return date is after depart date.")
-    else:
-        booking_id = str(uuid.uuid4())[:8]
-        record = {
-            "booking_id": booking_id,
-            "user_id": st.session_state.user["user_id"],
-            "name": name,
-            "email": email,
-            "destination": destination,
-            "depart": depart.isoformat(),
-            "return": ret.isoformat(),
-            "travelers": int(travelers),
-            "class": travel_class,
-            "extras": extras,
-            "created_at": datetime.utcnow(),
-        }
-
-        # Save to DB (only if Mongo collection exists)
-        if "bookings_col" in locals():
-            res = bookings_col.insert_one(record)
-
-        st.success("Booking created — see confirmation below")
-
-        # Output field
-        st.markdown("### Booking confirmation")
-        st.write(f"**Booking ID:** {booking_id}")
-        st.write(f"**Destination:** {destination}")
-        st.write(f"**Dates:** {depart} → {ret}")
-        st.write(f"**Travelers:** {travelers}")
-        st.write(f"**Class:** {travel_class}")
-        if extras:
-            st.write(f"**Extras:** {', '.join(extras)}")
-        st.write(f"A confirmation email would normally be sent to {email} — (demo uses DB only)")
-
-# Show user's bookings
-st.markdown("---")
-st.subheader("Your recent bookings")
-
-if "bookings_col" in locals():
-    my_bookings = list(
-        bookings_col.find({"user_id": st.session_state.user["user_id"]}).sort("created_at", -1)
-    )
+places = list_places(db)
+if not places:
+st.info("No places available yet. Ask admin to add places.")
 else:
-    my_bookings = []  # fallback for testing
+for p in places:
+with st.expander(f"{p['name']} — ₹{p['price']:.2f}"):
+st.write(f"**Price:** ₹{p['price']:.2f}")
+if st.button(f"Book {p['name']}", key=f"book_{p['_id']}"):
+booking = create_booking(db, st.session_state.username, p)
+st.success(f"Booked {p['name']} — Booking ID: {booking['booking_id']}")
 
-if my_bookings:
-    for b in my_bookings:
-        st.markdown(f"**{b['booking_id']}** — {b['destination']} ({b['depart']} → {b['return']})")
-else:
-    st.info("You have no bookings yet.")
 
-# Footer
 st.markdown("---")
-st.markdown("Built with ❤️ using Streamlit and MongoDB — Wanderly")
+st.subheader("Your booking history")
+bookings = get_user_bookings(db, st.session_state.username)
+if bookings:
+for b in bookings:
+st.write(b)
+else:
+st.info("You have no bookings yet.")
