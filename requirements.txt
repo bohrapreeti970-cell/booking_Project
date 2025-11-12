@@ -1,4 +1,6 @@
-streamlit>=1.30.0
-pymongo>=4.7.0
-uuid
+streamlit==1.40.0
+pymongo==4.10.1
+dnspython==2.7.0
+python-dateutil==2.9.0.post0
+
 
